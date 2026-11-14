@@ -1,0 +1,27 @@
+'use client';
+import {useEffect,useState} from "react";
+import {Search,Heart,ExternalLink,LayoutDashboard,Megaphone,History,Radio,Settings,Package} from "lucide-react";
+import {supabase} from "@/lib/supabase";
+type P={id:string;title:string;price:number;currency:string;condition:string;permalink:string;thumbnail:string;seller:string;free_shipping:boolean};
+const nav=[["home","Visão geral",LayoutDashboard],["search","Buscar ofertas",Search],["favorites","Favoritos",Heart],["campaigns","Campanhas",Megaphone],["history","Histórico",History],["channels","Canais",Radio],["settings","Configurações",Settings]] as const;
+const money=(n:number,c:string)=>new Intl.NumberFormat("pt-BR",{style:"currency",currency:c||"BRL"}).format(n);
+export default function Home(){
+ const [page,S]=useState("home"),[q,Q]=useState("fone bluetooth"),[items,I]=useState<P[]>([]),[fav,F]=useState<P[]>([]),[busy,B]=useState(false),[err,E]=useState(""),[db,D]=useState("Verificando"),[draft,C]=useState(""),[drafts,Ds]=useState<string[]>([]);
+ useEffect(()=>{try{F(JSON.parse(localStorage.getItem("ofertix:fav")||"[]"));Ds(JSON.parse(localStorage.getItem("ofertix:drafts")||"[]"))}catch{} if(!supabase){D("Não configurado");return} supabase.from("products").select("id").limit(1).then(({error})=>D(error?"Verificar RLS":"Conectado"))},[]);
+ useEffect(()=>{localStorage.setItem("ofertix:fav",JSON.stringify(fav))},[fav]);useEffect(()=>{localStorage.setItem("ofertix:drafts",JSON.stringify(drafts))},[drafts]);
+ async function search(){if(!q.trim())return;B(true);E("");try{const r=await fetch("/api/mercadolivre?q="+encodeURIComponent(q));const d=await r.json();if(!r.ok)throw Error(d.error);I(d.results||[]);S("search")}catch(e){E(e instanceof Error?e.message:"Erro na busca")}finally{B(false)}}
+ const products=page==="favorites"?fav:items;
+ return <main className="layout"><aside><div className="brand"><b>O</b><span>OFERTIX<small>PAINEL DE CONTROLE</small></span></div><p className="workspace">● Ambiente principal</p><nav>{nav.map(([id,name,Icon])=><button key={id} className={page===id?"active":""} onClick={()=>S(id)}><Icon size={17}/>{name}</button>)}</nav><small className="sidefoot">As melhores oportunidades.</small></aside><section className="main"><header><small>OFERTIX / PAINEL</small><h1>{nav.find(x=>x[0]===page)?.[1]}</h1></header>
+ {page==="home"&&<><section className="hero"><small>CENTRAL DE OPORTUNIDADES</small><h2>Encontre ofertas.<br/><em>Compartilhe oportunidades.</em></h2><p>Pesquise anúncios atuais do Mercado Livre e organize seus favoritos.</p><SearchBox q={q} Q={Q} search={search} busy={busy}/></section><div className="stats"><div><small>FAVORITOS</small><b>{fav.length}</b></div><div><small>RESULTADOS</small><b>{items.length}</b></div><div><small>SUPABASE</small><b>{db}</b></div></div><div className="shortcuts"><button onClick={search}>Buscar produtos</button><button onClick={()=>S("favorites")}>Meus favoritos</button><button onClick={()=>S("campaigns")}>Campanhas</button></div></>}
+ {page==="search"&&<><SearchBox q={q} Q={Q} search={search} busy={busy}/><p className="muted">Preços e condições podem mudar. Confira sempre o anúncio.</p></>}
+ {page==="favorites"&&<p className="muted">Favoritos guardados neste navegador.</p>}
+ {err&&<p className="error">{err}</p>}
+ {(page==="search"||page==="favorites")&&<div className="grid">{products.map(p=><article className="product" key={p.id}><button className="heart" onClick={()=>F(old=>old.some(x=>x.id===p.id)?old.filter(x=>x.id!==p.id):[p,...old])}><Heart size={18} fill={fav.some(x=>x.id===p.id)?"currentColor":"none"}/></button><img src={(p.thumbnail||"").replace("http:","https:")} alt=""/><div className="pbody"><small>{p.condition==="new"?"NOVO":"CONDIÇÃO NÃO INFORMADA"}</small><b>{p.title}</b><strong>{money(p.price,p.currency)}</strong><span>{p.seller}{p.free_shipping?" · Frete grátis informado":""}</span><a href={p.permalink} target="_blank" rel="noreferrer">Ver anúncio <ExternalLink size={13}/></a></div></article>)}</div>}
+ {page==="campaigns"&&<section className="panel"><h2>Rascunhos de campanha</h2><p>Nenhuma mensagem é enviada automaticamente.</p><textarea value={draft} onChange={e=>C(e.target.value)} placeholder="Escreva sua mensagem..."/><button className="primary" onClick={()=>{if(draft.trim()){Ds([draft,...drafts]);C("")}}}>Salvar rascunho</button>{drafts.map((x,i)=><p className="draft" key={i}>{x}<button onClick={()=>Ds(drafts.filter((_,j)=>j!==i))}>Excluir</button></p>)}</section>}
+ {page==="history"&&<Info title="Histórico ainda não está ativo" text="Esta versão não coleta preços automaticamente nem inventa descontos."/>}
+ {page==="channels"&&<Info title="Canais em preparação" text="WhatsApp e outros canais ainda não estão conectados."/>}
+ {page==="settings"&&<Info title={"Supabase: "+db} text="As tabelas protegidas por RLS precisam de políticas seguras para habilitar gravação."/>}
+ <footer>OFERTIX © 2026 · As melhores oportunidades, em um só lugar.</footer></section></main>
+}
+function SearchBox({q,Q,search,busy}:{q:string;Q:(v:string)=>void;search:()=>void;busy:boolean}){return <div className="searchbox"><Search size={18}/><input value={q} onChange={e=>Q(e.target.value)} onKeyDown={e=>e.key==="Enter"&&search()} placeholder="O que você procura?"/><button onClick={search} disabled={busy}>{busy?"Buscando...":"Buscar ofertas"}</button></div>}
+function Info({title,text}:{title:string;text:string}){return <section className="panel"><Package/><h2>{title}</h2><p>{text}</p></section>}
